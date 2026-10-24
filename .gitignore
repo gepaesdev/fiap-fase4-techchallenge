@@ -1,0 +1,27 @@
+# Build
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+
+# Azure Functions local settings (may contain secrets)
+local.settings.json
+.azurefunctions/
+
+# Bicep / Azure CLI outputs
+infra/*.json.local
+*.parameters.local.json
+
+# Env / secrets
+.env
+*.env
