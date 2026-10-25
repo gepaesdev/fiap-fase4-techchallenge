@@ -1,44 +1,44 @@
-# Feedback Platform — FIAP Pós Tech · Phase 4 Tech Challenge
+# Plataforma de Feedback — FIAP Pós Tech · Tech Challenge Fase 4
 
-Serverless platform where students rate classes and administrators receive critical-feedback alerts and a
-weekly report. Built with **Java 21 + Spring Cloud Function on Azure Functions**.
+Plataforma serverless em que estudantes avaliam as aulas e administradores recebem alertas de avaliações
+críticas e um relatório semanal. Construída com **Java 21 + Spring Cloud Function no Azure Functions**.
 
-> 🚧 Work in progress — sections below are filled in as each phase is delivered.
+> 🚧 Em desenvolvimento — as seções abaixo são preenchidas conforme cada fase é entregue.
 
-## Table of contents
-1. [Cloud model and components](#cloud-model-and-components)
-2. [Solution architecture](#solution-architecture)
-3. [Serverless functions](#serverless-functions)
+## Sumário
+1. [Modelo de nuvem e componentes](#modelo-de-nuvem-e-componentes)
+2. [Arquitetura da solução](#arquitetura-da-solução)
+3. [Funções serverless](#funções-serverless)
 4. [API](#api)
-5. [Security and governance](#security-and-governance)
-6. [Monitoring](#monitoring)
-7. [Running locally](#running-locally)
+5. [Segurança e governança](#segurança-e-governança)
+6. [Monitoramento](#monitoramento)
+7. [Execução local](#execução-local)
 8. [Deploy](#deploy)
-9. [Project structure](#project-structure)
+9. [Estrutura do projeto](#estrutura-do-projeto)
 
-## Cloud model and components
-_TODO (phase 8)._
+## Modelo de nuvem e componentes
+_A fazer (fase 8)._
 
-## Solution architecture
+## Arquitetura da solução
 ```mermaid
 flowchart LR
-    Student([Student]) -- "POST /api/avaliacao" --> Submit[submit-feedback<br/>HTTP trigger]
+    Student([Estudante]) -- "POST /api/avaliacao" --> Submit[submit-feedback<br/>gatilho HTTP]
     Submit --> Cosmos[(Cosmos DB<br/>feedbacks)]
     Cosmos -- change feed --> Notifier[critical-feedback-notifier]
-    Notifier -- CRITICAL only --> Email[Communication Services<br/>Email]
-    Timer([Timer: Mondays 08:00 BRT]) --> Report[weekly-report]
+    Notifier -- somente CRITICAL --> Email[Communication Services<br/>Email]
+    Timer([Agendamento: segundas 08:00 BRT]) --> Report[weekly-report]
     Report --> Cosmos
     Report --> Reports[(Cosmos DB<br/>weekly-reports)]
     Report --> Email
-    Email --> Admins([Administrators])
+    Email --> Admins([Administradores])
 ```
 
-## Serverless functions
-| Function | Trigger | Single responsibility |
+## Funções serverless
+| Função | Gatilho | Responsabilidade única |
 |---|---|---|
-| `submit-feedback-function` | HTTP `POST /api/avaliacao` | Validate, classify urgency and persist a feedback |
-| `critical-feedback-notifier-function` | Cosmos DB change feed | E-mail administrators about critical feedback |
-| `weekly-report-function` | Timer (weekly) | Build the weekly report, store it and e-mail it |
+| `submit-feedback-function` | HTTP `POST /api/avaliacao` | Validar, classificar a urgência e gravar a avaliação |
+| `critical-feedback-notifier-function` | Change feed do Cosmos DB | Enviar e-mail aos administradores sobre avaliações críticas |
+| `weekly-report-function` | Agendamento (semanal) | Gerar o relatório semanal, salvá-lo e enviá-lo por e-mail |
 
 ## API
 ```http
@@ -47,57 +47,86 @@ Content-Type: application/json
 
 { "descricao": "string", "nota": 0..10 }
 ```
-Urgency: `0–3 → CRITICAL`, `4–6 → MEDIUM`, `7–10 → LOW`.
-The route is `/avaliacao` (without the accent from the challenge statement) to keep the URL ASCII-safe.
 
-## Security and governance
-_TODO (phase 6/8)._
+| Situação | Resposta |
+|---|---|
+| Avaliação válida | `201 Created` com `{ "id", "urgency", "createdAt" }` |
+| `nota` fora de 0–10, decimal (ex.: `7.5`) ou ausente | `400 Bad Request` com a lista de problemas |
+| `descricao` vazia ou com mais de 2000 caracteres | `400 Bad Request` |
+| Corpo vazio ou JSON inválido | `400 Bad Request` |
 
-## Monitoring
-_TODO (phase 6/8)._
+**Urgência** — o enunciado exige que a urgência apareça no e-mail e no relatório, mas não define como calculá-la.
+Adotamos três níveis derivados da nota:
 
-## Running locally
-Everything runs on local emulators — no Azure subscription needed.
+| Nota | Urgência |
+|---|---|
+| 0 a 3 | `CRITICAL` (dispara o e-mail de alerta) |
+| 4 a 6 | `MEDIUM` |
+| 7 a 10 | `LOW` |
 
-**Requirements:** JDK 21+, Maven 3.9+, Docker, [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
-(macOS: `brew tap azure/functions && brew install azure-functions-core-tools@4`).
+Observações sobre o contrato:
+- `nota` aceita apenas **inteiros** de 0 a 10, conforme o enunciado (`int`); valores decimais são rejeitados em vez
+  de truncados silenciosamente.
+- A rota é `/avaliacao` (sem o acento do enunciado) para manter a URL segura em ASCII.
+- Os nomes dos campos de entrada seguem o enunciado em português; o código-fonte é escrito em inglês.
 
+## Segurança e governança
+_A fazer (fases 6 e 8)._
+
+## Monitoramento
+_A fazer (fases 6 e 8)._
+
+## Execução local
+Tudo roda em emuladores locais — não é necessária uma assinatura da Azure.
+
+**Pré-requisitos:** JDK 21+, Maven 3.9+, Docker Desktop e
+[Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local).
+No macOS, instale o Core Tools pelo terminal:
 ```bash
-# 1. Build and run all tests
+brew tap azure/functions
+brew trust azure/functions
+brew install azure-functions-core-tools@4
+```
+
+Com o **Docker Desktop aberto**, execute no terminal, na raiz do projeto:
+```bash
+# 1. Compilar e rodar todos os testes
 mvn clean verify
 
-# 2. Start the emulators (Cosmos DB vNext + Azurite)
+# 2. Subir os emuladores (Cosmos DB vNext + Azurite)
 docker compose up -d
 
-# 3. Local settings (gitignored). Contains only the public, well-known emulator key.
+# 3. Configuração local (ignorada pelo Git). Contém apenas a chave pública e padrão do emulador.
 cp submit-feedback-function/local.settings.example.json submit-feedback-function/local.settings.json
 
-# 4. Run the function — http://localhost:7071/api/avaliacao
+# 4. Rodar a função — http://localhost:7071/api/avaliacao
 mvn -pl submit-feedback-function -am install -DskipTests
 mvn -pl submit-feedback-function azure-functions:run
 ```
 
-Quick check:
+Teste rápido, em outro terminal:
 ```bash
 curl -i -X POST http://localhost:7071/api/avaliacao \
   -H "Content-Type: application/json" \
   -d '{"descricao": "Áudio inaudível durante a aula", "nota": 2}'
 ```
-Stored documents can be browsed in the emulator's Data Explorer: http://localhost:1234.
+Os documentos gravados podem ser consultados no Data Explorer do emulador: http://localhost:1234.
 
-**Postman:** import `docs/postman/feedback-platform.postman_collection.json` and the `local` environment, then run
-the collection in folder order (Collection Runner). Function keys are not enforced locally, so `functionKey` stays empty.
+**Postman:** importe `docs/postman/feedback-platform.postman_collection.json` e o environment
+`local.postman_environment.json`, depois rode a collection na ordem das pastas (Collection Runner).
+Localmente as chaves de função não são exigidas, então `functionKey` fica vazio.
 
 ## Deploy
-_TODO (phase 6/7)._
+_A fazer (fases 6 e 7)._
 
-## Project structure
+## Estrutura do projeto
 ```
-feedback-core/                         shared domain, no cloud dependencies
-submit-feedback-function/              function 1
-critical-feedback-notifier-function/   function 2
-weekly-report-function/                function 3
-infra/                                 Bicep templates
-docs/                                  diagrams, video script, Postman collection
-.github/workflows/                     CI and deploy pipelines
+feedback-core/                         domínio compartilhado, sem dependências de nuvem
+feedback-cosmos-adapter/               implementação das portas com Cosmos DB, usada por todas as funções
+submit-feedback-function/              função 1 — recebimento de avaliações
+critical-feedback-notifier-function/   função 2 — notificação de avaliações críticas
+weekly-report-function/                função 3 — relatório semanal
+infra/                                 templates Bicep (infraestrutura como código)
+docs/                                  diagramas, roteiro do vídeo, collection do Postman
+.github/workflows/                     pipelines de CI e deploy
 ```
