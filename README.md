@@ -28,7 +28,7 @@ flowchart LR
     Notifier -- CRITICAL only --> Email[Communication Services<br/>Email]
     Timer([Timer: Mondays 08:00 BRT]) --> Report[weekly-report]
     Report --> Cosmos
-    Report --> Blob[(Blob Storage<br/>reports)]
+    Report --> Reports[(Cosmos DB<br/>weekly-reports)]
     Report --> Email
     Email --> Admins([Administrators])
 ```
@@ -57,10 +57,36 @@ _TODO (phase 6/8)._
 _TODO (phase 6/8)._
 
 ## Running locally
-Requirements: JDK 21+, Maven 3.9+, Azure Functions Core Tools v4, Docker (Cosmos DB Emulator).
+Everything runs on local emulators — no Azure subscription needed.
+
+**Requirements:** JDK 21+, Maven 3.9+, Docker, [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
+(macOS: `brew tap azure/functions && brew install azure-functions-core-tools@4`).
+
 ```bash
+# 1. Build and run all tests
 mvn clean verify
+
+# 2. Start the emulators (Cosmos DB vNext + Azurite)
+docker compose up -d
+
+# 3. Local settings (gitignored). Contains only the public, well-known emulator key.
+cp submit-feedback-function/local.settings.example.json submit-feedback-function/local.settings.json
+
+# 4. Run the function — http://localhost:7071/api/avaliacao
+mvn -pl submit-feedback-function -am install -DskipTests
+mvn -pl submit-feedback-function azure-functions:run
 ```
+
+Quick check:
+```bash
+curl -i -X POST http://localhost:7071/api/avaliacao \
+  -H "Content-Type: application/json" \
+  -d '{"descricao": "Áudio inaudível durante a aula", "nota": 2}'
+```
+Stored documents can be browsed in the emulator's Data Explorer: http://localhost:1234.
+
+**Postman:** import `docs/postman/feedback-platform.postman_collection.json` and the `local` environment, then run
+the collection in folder order (Collection Runner). Function keys are not enforced locally, so `functionKey` stays empty.
 
 ## Deploy
 _TODO (phase 6/7)._

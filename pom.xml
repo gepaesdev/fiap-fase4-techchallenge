@@ -21,6 +21,7 @@
 
     <modules>
         <module>feedback-core</module>
+        <module>feedback-cosmos-adapter</module>
         <module>submit-feedback-function</module>
         <module>critical-feedback-notifier-function</module>
         <module>weekly-report-function</module>
@@ -36,6 +37,10 @@
         <azure-functions-java-library.version>3.3.0</azure-functions-java-library.version>
         <azure-functions-maven-plugin.version>1.42.0</azure-functions-maven-plugin.version>
         <jacoco.version>0.8.15</jacoco.version>
+
+        <!-- Overridable with -D; the Function Apps themselves are provisioned by Bicep. -->
+        <azure.resourceGroup>rg-feedback-platform</azure.resourceGroup>
+        <azure.region>eastus2</azure.region>
     </properties>
 
     <dependencyManagement>
@@ -62,6 +67,11 @@
             <dependency>
                 <groupId>br.com.fiap.feedbackplatform</groupId>
                 <artifactId>feedback-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.feedbackplatform</groupId>
+                <artifactId>feedback-cosmos-adapter</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
@@ -93,6 +103,15 @@
                     <groupId>com.microsoft.azure</groupId>
                     <artifactId>azure-functions-maven-plugin</artifactId>
                     <version>${azure-functions-maven-plugin.version}</version>
+                    <configuration>
+                        <appName>${functionAppName}</appName>
+                        <resourceGroup>${azure.resourceGroup}</resourceGroup>
+                        <region>${azure.region}</region>
+                        <runtime>
+                            <os>linux</os>
+                            <javaVersion>21</javaVersion>
+                        </runtime>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
@@ -146,4 +165,50 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Applied to every module that is an Azure Function (has a host.json). -->
+        <profile>
+            <id>azure-function</id>
+            <activation>
+                <file>
+                    <exists>${basedir}/host.json</exists>
+                </file>
+            </activation>
+            <dependencies>
+                <!-- Logback: without it SLF4J falls back to a no-op logger and application logs are lost. -->
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <mainClass>${start-class}</mainClass>
+                                </manifest>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.microsoft.azure</groupId>
+                        <artifactId>azure-functions-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>package-functions</id>
+                                <goals>
+                                    <goal>package</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -1,0 +1,21 @@
+# Local emulators so the functions run without an Azure subscription (and without cost).
+#   docker compose up -d
+services:
+  cosmosdb:
+    # vNext emulator: the only Cosmos DB emulator that runs on Apple Silicon (arm64) as well as x64.
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+    container_name: feedback-cosmosdb
+    command: ["--protocol", "http"]
+    ports:
+      - "8081:8081"   # Cosmos DB gateway endpoint
+      - "1234:1234"   # Data Explorer UI: http://localhost:1234
+
+  azurite:
+    # Storage emulator required by the Functions host (AzureWebJobsStorage) and, later, by the timer trigger.
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: feedback-azurite
+    command: ["azurite", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck"]
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
