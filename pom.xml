@@ -22,6 +22,7 @@
     <modules>
         <module>feedback-core</module>
         <module>feedback-cosmos-adapter</module>
+        <module>feedback-email-adapter</module>
         <module>submit-feedback-function</module>
         <module>critical-feedback-notifier-function</module>
         <module>weekly-report-function</module>
@@ -72,6 +73,11 @@
             <dependency>
                 <groupId>br.com.fiap.feedbackplatform</groupId>
                 <artifactId>feedback-cosmos-adapter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.feedbackplatform</groupId>
+                <artifactId>feedback-email-adapter</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

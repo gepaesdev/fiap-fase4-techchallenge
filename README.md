@@ -40,6 +40,19 @@ flowchart LR
 | `critical-feedback-notifier-function` | Change feed do Cosmos DB | Enviar e-mail aos administradores sobre avaliações críticas |
 | `weekly-report-function` | Agendamento (semanal) | Gerar o relatório semanal, salvá-lo e enviá-lo por e-mail |
 
+### critical-feedback-notifier-function
+| Item | Detalhe |
+|---|---|
+| Gatilho | Change feed do container `feedbacks` (Cosmos DB), com container de controle `leases` |
+| Entrada | Lote de avaliações recém-gravadas |
+| O que faz | Ignora as que não são `CRITICAL` e envia um e-mail por avaliação crítica |
+| Conteúdo do e-mail | Descrição, urgência e data de envio (exigidos pelo enunciado), além da nota e do id |
+| Falhas | Política de *retry* exponencial (5 tentativas, de 5 s a 5 min); documentos malformados são ignorados e registrados em log |
+| Configurações | `CosmosDbConnection`, `COSMOS_DATABASE`, `COSMOS_CONTAINER`, `EMAIL_PROVIDER`, `ACS_ENDPOINT`, `EMAIL_SENDER_ADDRESS`, `ADMIN_EMAILS` |
+
+A função de envio **não sabe** que a de notificação existe: elas se comunicam apenas pelo banco (change feed),
+o que mantém a responsabilidade única de cada uma.
+
 ## API
 ```http
 POST /api/avaliacao
@@ -104,6 +117,15 @@ mvn -pl submit-feedback-function -am install -DskipTests
 mvn -pl submit-feedback-function azure-functions:run
 ```
 
+Para rodar também a **função de notificação crítica** (porta 7072), em outro terminal:
+```bash
+cp critical-feedback-notifier-function/local.settings.example.json critical-feedback-notifier-function/local.settings.json
+mvn -pl critical-feedback-notifier-function -am install -DskipTests
+mvn -pl critical-feedback-notifier-function azure-functions:run -DfuncPort=7072
+```
+Localmente não existe emulador de e-mail: com `EMAIL_PROVIDER=log`, o e-mail de alerta é **escrito no log** da
+função em vez de enviado. Para receber no seu endereço, ajuste `ADMIN_EMAILS` no `local.settings.json`.
+
 Teste rápido, em outro terminal:
 ```bash
 curl -i -X POST http://localhost:7071/api/avaliacao \
@@ -111,6 +133,8 @@ curl -i -X POST http://localhost:7071/api/avaliacao \
   -d '{"descricao": "Áudio inaudível durante a aula", "nota": 2}'
 ```
 Os documentos gravados podem ser consultados no Data Explorer do emulador: http://localhost:1234.
+Com as duas funções rodando, uma avaliação com nota 0 a 3 gera, segundos depois, a linha `[LOCAL E-MAIL]` no log
+da função de notificação; notas 4 a 10 não geram e-mail.
 
 **Postman:** importe `docs/postman/feedback-platform.postman_collection.json` e o environment
 `local.postman_environment.json`, depois rode a collection na ordem das pastas (Collection Runner).
@@ -123,6 +147,7 @@ _A fazer (fases 6 e 7)._
 ```
 feedback-core/                         domínio compartilhado, sem dependências de nuvem
 feedback-cosmos-adapter/               implementação das portas com Cosmos DB, usada por todas as funções
+feedback-email-adapter/                envio de e-mail aos administradores (Azure Communication Services ou log local)
 submit-feedback-function/              função 1 — recebimento de avaliações
 critical-feedback-notifier-function/   função 2 — notificação de avaliações críticas
 weekly-report-function/                função 3 — relatório semanal
