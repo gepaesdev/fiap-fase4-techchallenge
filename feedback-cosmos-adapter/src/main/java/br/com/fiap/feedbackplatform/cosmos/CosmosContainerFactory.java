@@ -32,18 +32,26 @@ public final class CosmosContainerFactory {
         return builder.credential(new DefaultAzureCredentialBuilder().build()).buildClient();
     }
 
-    public static CosmosContainer getContainer(CosmosClient client, CosmosProperties properties) {
-        if (properties.emulator()) {
-            return createContainerIfMissing(client, properties);
-        }
-        return client.getDatabase(properties.database()).getContainer(properties.container());
+    public static CosmosContainer getFeedbackContainer(CosmosClient client, CosmosProperties properties) {
+        return getContainer(client, properties, properties.container(), FeedbackDocument.PARTITION_KEY_PATH);
     }
 
-    private static CosmosContainer createContainerIfMissing(CosmosClient client, CosmosProperties properties) {
-        client.createDatabaseIfNotExists(properties.database());
-        CosmosDatabase database = client.getDatabase(properties.database());
-        database.createContainerIfNotExists(
-                new CosmosContainerProperties(properties.container(), FeedbackDocument.PARTITION_KEY_PATH));
-        return database.getContainer(properties.container());
+    /**
+     * Returns the container, creating it first when running against the local emulator.
+     */
+    public static CosmosContainer getContainer(CosmosClient client, CosmosProperties properties,
+                                               String containerName, String partitionKeyPath) {
+        if (properties.emulator()) {
+            return createContainerIfMissing(client, properties.database(), containerName, partitionKeyPath);
+        }
+        return client.getDatabase(properties.database()).getContainer(containerName);
+    }
+
+    private static CosmosContainer createContainerIfMissing(CosmosClient client, String databaseName,
+                                                            String containerName, String partitionKeyPath) {
+        client.createDatabaseIfNotExists(databaseName);
+        CosmosDatabase database = client.getDatabase(databaseName);
+        database.createContainerIfNotExists(new CosmosContainerProperties(containerName, partitionKeyPath));
+        return database.getContainer(containerName);
     }
 }

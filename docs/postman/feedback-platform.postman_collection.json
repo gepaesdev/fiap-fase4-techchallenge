@@ -1,13 +1,13 @@
 {
   "info": {
     "name": "Feedback Platform — FIAP Tech Challenge Fase 4",
-    "description": "Testes da API da plataforma de feedback.\n\nExecute na ordem das pastas (ou use o Collection Runner). Selecione o environment 'Local' ou 'Azure'.\n\nVariáveis: baseUrl (ex.: http://localhost:7071) e functionKey (vazio localmente; na Azure, a chave da função).",
+    "description": "Testes da plataforma de feedback.\n\nExecute na ordem das pastas (ou use o Collection Runner). Selecione o environment 'Local' ou 'Azure'.\n\nVariáveis: baseUrl (função de envio), functionKey (chave da função de envio; vazio localmente), reportBaseUrl (função de relatório) e masterKey (chave mestra da função de relatório; vazio localmente).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
       "name": "1. Envio de avaliação (cenários de sucesso)",
-      "description": "Requisito: endpoint POST /avaliacao recebendo descricao + nota (0 a 10). Cada envio é validado, classificado por urgência e gravado no Cosmos DB.\n\nRegra de urgência: 0–3 CRITICAL · 4–6 MEDIUM · 7–10 LOW.",
+      "description": "Requisito: endpoint POST /avaliacao recebendo descricao + nota (0 a 10). Cada envio é validado, classificado por urgência e gravado no Cosmos DB.\n\nRegra de urgência: 0–3 CRITICAL · 4–6 MEDIUM · 7–10 LOW.\n\nA requisição 1.3 (CRITICAL) também dispara automaticamente a função critical-feedback-notifier, que envia o e-mail de urgência aos administradores (descrição, urgência e data de envio).",
       "item": [
         {
           "name": "1.1 Avaliação positiva (nota 9 → LOW)",
@@ -1085,6 +1085,61 @@
           ]
         }
       ]
+    },
+    {
+      "name": "4. Relatório semanal (disparo manual)",
+      "description": "Requisito: relatório semanal dos feedbacks, com média de avaliações, quantidade por dia e por urgência.\n\nA função weekly-report roda sozinha toda segunda às 08:00 (Brasília). Esta requisição usa a URL de administração do Azure Functions para executá-la NA HORA — útil para testes e para o vídeo.\n\nComo verificar: o e-mail do relatório (localmente, a linha [LOCAL E-MAIL] no log da função) e o documento salvo no container weekly-reports do Cosmos DB.\n\nLocalmente defina REPORT_WEEK_OFFSET=0 (semana atual) para que as avaliações recém-criadas apareçam no relatório.",
+      "item": [
+        {
+          "name": "4.1 Gerar relatório semanal agora",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-functions-key",
+                "value": "{{masterKey}}",
+                "description": "Chave mestra (_master) da Function App de relatório. Não é exigida localmente."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"input\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{reportBaseUrl}}/admin/functions/weekly-report",
+              "host": [
+                "{{reportBaseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "functions",
+                "weekly-report"
+              ]
+            },
+            "description": "Dispara a função agendada imediatamente. Resposta esperada: 202 Accepted (a execução é assíncrona)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 202 Accepted (execução disparada)\", () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -1094,6 +1149,14 @@
     },
     {
       "key": "functionKey",
+      "value": ""
+    },
+    {
+      "key": "reportBaseUrl",
+      "value": "http://localhost:7073"
+    },
+    {
+      "key": "masterKey",
       "value": ""
     }
   ]

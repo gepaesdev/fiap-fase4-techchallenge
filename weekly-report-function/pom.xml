@@ -12,12 +12,25 @@
 
     <artifactId>weekly-report-function</artifactId>
     <name>Weekly Report Function</name>
-    <description>Timer-triggered function: builds and delivers the weekly feedback report</description>
+    <description>Timer-triggered function: builds, stores and e-mails the weekly feedback report</description>
+
+    <properties>
+        <start-class>br.com.fiap.feedbackplatform.weeklyreport.WeeklyReportApplication</start-class>
+        <functionAppName>func-feedback-report</functionAppName>
+    </properties>
 
     <dependencies>
         <dependency>
             <groupId>br.com.fiap.feedbackplatform</groupId>
             <artifactId>feedback-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>br.com.fiap.feedbackplatform</groupId>
+            <artifactId>feedback-cosmos-adapter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>br.com.fiap.feedbackplatform</groupId>
+            <artifactId>feedback-email-adapter</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -26,6 +39,15 @@
         <dependency>
             <groupId>com.microsoft.azure.functions</groupId>
             <artifactId>azure-functions-java-library</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -32,7 +32,7 @@ public class SubmitFeedbackConfiguration {
 
     @Bean
     public FeedbackWriter feedbackWriter(CosmosClient cosmosClient, CosmosProperties cosmosProperties) {
-        return new CosmosFeedbackWriter(CosmosContainerFactory.getContainer(cosmosClient, cosmosProperties));
+        return new CosmosFeedbackWriter(CosmosContainerFactory.getFeedbackContainer(cosmosClient, cosmosProperties));
     }
 
     @Bean

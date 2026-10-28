@@ -53,6 +53,21 @@ flowchart LR
 A função de envio **não sabe** que a de notificação existe: elas se comunicam apenas pelo banco (change feed),
 o que mantém a responsabilidade única de cada uma.
 
+### weekly-report-function
+| Item | Detalhe |
+|---|---|
+| Gatilho | Agendamento (*timer*) toda **segunda-feira às 08:00 (Brasília)** — expressão `0 0 11 * * 1`, em UTC |
+| Período | Segunda a domingo, no horário de Brasília. `REPORT_WEEK_OFFSET=1` (padrão) = semana anterior completa; `0` = semana atual até o momento (testes e demonstração) |
+| O que faz | Lê as avaliações da semana, calcula os indicadores, salva o relatório no Cosmos DB e envia por e-mail |
+| Conteúdo | Descrição, urgência e data de envio de cada avaliação; quantidade por dia; quantidade por urgência; média das notas |
+| Histórico | Container `weekly-reports`, um documento por semana com `id` = data de início (ex.: `2026-10-19`). Reexecutar a mesma semana substitui o relatório (sem duplicatas) |
+| Leitura eficiente | Uma consulta por dia, cada uma em uma única partição (`createdDate`) — nunca varre o banco inteiro |
+| Disparo manual | `POST /admin/functions/weekly-report` (chave mestra na Azure) — requisição 4.1 da collection do Postman |
+| Configurações | `COSMOS_*`, `COSMOS_REPORTS_CONTAINER`, `EMAIL_PROVIDER`, `ACS_ENDPOINT`, `EMAIL_SENDER_ADDRESS`, `ADMIN_EMAILS`, `REPORT_WEEK_OFFSET` |
+
+O enunciado não define o formato do relatório; optamos por e-mail aos administradores **e** histórico no banco, para
+que qualquer semana passada possa ser consultada pela data.
+
 ## API
 ```http
 POST /api/avaliacao
@@ -117,11 +132,22 @@ mvn -pl submit-feedback-function -am install -DskipTests
 mvn -pl submit-feedback-function azure-functions:run
 ```
 
-Para rodar também a **função de notificação crítica** (porta 7072), em outro terminal:
+Para rodar também as outras funções, cada uma em **outro terminal**:
 ```bash
+# Função 2 — notificação crítica (porta 7072)
 cp critical-feedback-notifier-function/local.settings.example.json critical-feedback-notifier-function/local.settings.json
 mvn -pl critical-feedback-notifier-function -am install -DskipTests
 mvn -pl critical-feedback-notifier-function azure-functions:run -DfuncPort=7072
+
+# Função 3 — relatório semanal (porta 7073)
+cp weekly-report-function/local.settings.example.json weekly-report-function/local.settings.json
+mvn -pl weekly-report-function -am install -DskipTests
+mvn -pl weekly-report-function azure-functions:run -DfuncPort=7073
+```
+Para gerar o relatório sem esperar a segunda-feira:
+```bash
+curl -i -X POST http://localhost:7073/admin/functions/weekly-report \
+  -H "Content-Type: application/json" -d '{"input": ""}'
 ```
 Localmente não existe emulador de e-mail: com `EMAIL_PROVIDER=log`, o e-mail de alerta é **escrito no log** da
 função em vez de enviado. Para receber no seu endereço, ajuste `ADMIN_EMAILS` no `local.settings.json`.
@@ -138,7 +164,14 @@ da função de notificação; notas 4 a 10 não geram e-mail.
 
 **Postman:** importe `docs/postman/feedback-platform.postman_collection.json` e o environment
 `local.postman_environment.json`, depois rode a collection na ordem das pastas (Collection Runner).
-Localmente as chaves de função não são exigidas, então `functionKey` fica vazio.
+Localmente as chaves não são exigidas, então `functionKey` e `masterKey` ficam vazios.
+
+| Pasta | O que valida | Requisito do enunciado |
+|---|---|---|
+| 1. Envio de avaliação | `201` para notas LOW, MEDIUM e CRITICAL; a crítica dispara o e-mail de urgência | Endpoint `POST /avaliacao`; notificação de itens críticos |
+| 2. Limites da urgência | Notas 0, 3, 4, 6, 7 e 10 | Classificação de urgência |
+| 3. Validações | `400` para entradas inválidas | Segurança dos dados |
+| 4. Relatório semanal | Disparo manual do relatório (`202`) | Relatório semanal com média |
 
 ## Deploy
 _A fazer (fases 6 e 7)._
