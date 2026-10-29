@@ -40,8 +40,8 @@
         <jacoco.version>0.8.15</jacoco.version>
 
         <!-- Overridable with -D; the Function Apps themselves are provisioned by Bicep. -->
-        <azure.resourceGroup>rg-feedback-platform</azure.resourceGroup>
-        <azure.region>eastus2</azure.region>
+        <azure.resourceGroup>rg-feedback-platform-dev</azure.resourceGroup>
+        <azure.region>brazilsouth</azure.region>
     </properties>
 
     <dependencyManagement>
