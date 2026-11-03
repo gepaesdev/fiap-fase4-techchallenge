@@ -13,6 +13,8 @@ param appInsightsId string
 @description('Who receives operational alerts.')
 param alertEmail string
 
+var ownerRoleId = '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
+
 resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: 'ag-feedback-${suffix}'
   location: 'global'
@@ -24,6 +26,15 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
       {
         name: 'operators'
         emailAddress: alertEmail
+        useCommonAlertSchema: true
+      }
+    ]
+    // Second channel: whoever owns the subscription receives alerts at their Microsoft Entra account e-mail,
+    // so no address is hard-coded and alerts follow ownership changes.
+    armRoleReceivers: [
+      {
+        name: 'subscription-owners'
+        roleId: ownerRoleId
         useCommonAlertSchema: true
       }
     ]
