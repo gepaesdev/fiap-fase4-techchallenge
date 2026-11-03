@@ -1,0 +1,142 @@
+# Continuous delivery: every push to main is built, tested and, only if every test passes, deployed to the
+# three Azure Function Apps. Authentication with Azure uses OpenID Connect (federated credentials): no password
+# or secret key is stored in GitHub.
+name: Build, test and deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Build and run all tests
+        run: mvn -B clean verify
+
+      - name: Zip function packages
+        run: |
+          mkdir -p packages
+          for module in submit-feedback-function critical-feedback-notifier-function weekly-report-function; do
+            (cd "$module"/target/azure-functions/*/ && zip -qr "$GITHUB_WORKSPACE/packages/$module.zip" . -x 'local.settings.json')
+          done
+          ls -lh packages
+
+      - name: Upload function packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: function-packages
+          path: packages/
+          retention-days: 7
+
+      - name: Upload test coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: feedback-core/target/site/jacoco/
+          retention-days: 7
+
+  deploy:
+    name: Deploy ${{ matrix.module }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: submit-feedback-function
+            app: ${{ vars.SUBMIT_FUNCTION_APP }}
+          - module: critical-feedback-notifier-function
+            app: ${{ vars.NOTIFIER_FUNCTION_APP }}
+          - module: weekly-report-function
+            app: ${{ vars.REPORT_FUNCTION_APP }}
+    steps:
+      - name: Download function packages
+        uses: actions/download-artifact@v8
+        with:
+          name: function-packages
+          path: packages
+
+      - name: Log in to Azure (OpenID Connect)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy package
+        run: |
+          az functionapp deployment source config-zip \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ matrix.app }}" \
+            --src "packages/${{ matrix.module }}.zip"
+
+      - name: Verify function is registered
+        run: |
+          functions=$(az functionapp function list \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ matrix.app }}" \
+            --query "[].name" -o tsv)
+          echo "Registered: ${functions}"
+          test -n "${functions}"
+
+  smoke-test:
+    name: Smoke test the public API
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Log in to Azure (OpenID Connect)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # An invalid rating must be rejected with 400: proves the API is up and validating, without storing data
+      # or e-mailing the administrators.
+      - name: Invalid feedback is rejected with 400
+        run: |
+          key=$(az functionapp keys list \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.SUBMIT_FUNCTION_APP }}" \
+            --query "functionKeys.default" -o tsv)
+          echo "::add-mask::${key}"
+          status=$(curl -s -o response.json -w '%{http_code}' --max-time 120 \
+            -X POST "https://${{ vars.SUBMIT_FUNCTION_APP }}.azurewebsites.net/api/avaliacao" \
+            -H 'Content-Type: application/json' -H "x-functions-key: ${key}" \
+            -d '{"descricao":"smoke test","nota":11}')
+          cat response.json; echo
+          test "${status}" = "400"
