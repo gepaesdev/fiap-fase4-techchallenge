@@ -13,6 +13,9 @@ param reportWeekOffset = int(readEnvironmentVariable('REPORT_WEEK_OFFSET', '1'))
 
 param budgetAmount = 5
 param enableBudget = true
+// Fixed on purpose: Azure does not allow changing a budget's start date, so a date computed from the
+// current month would break every redeploy made in a later month.
+param budgetStartDate = '2026-10-01'
 
 // Team members' Microsoft Entra object ids (az ad user show --id <email> --query id -o tsv).
 param teamMemberPrincipalIds = []
