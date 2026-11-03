@@ -34,7 +34,10 @@ if [[ -z "${PRINCIPAL_ID}" ]]; then
 fi
 
 # 2. Federated credential: only workflows running in this repository's production environment get tokens.
-SUBJECT="repo:${REPOSITORY}:environment:${ENVIRONMENT_NAME}"
+# The subject prefix is read from GitHub instead of being built by hand: GitHub may use the immutable format
+# "repo:<owner>@<ownerId>/<repo>@<repoId>", which also protects against a renamed or re-created repository.
+SUBJECT_PREFIX="$(gh api "repos/${REPOSITORY}/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty')"
+SUBJECT="${SUBJECT_PREFIX:-repo:${REPOSITORY}}:environment:${ENVIRONMENT_NAME}"
 if [[ -z "$(az ad app federated-credential list --id "${CLIENT_ID}" --query "[?subject=='${SUBJECT}'].name" -o tsv)" ]]; then
   az ad app federated-credential create --id "${CLIENT_ID}" --parameters "{
     \"name\": \"github-${ENVIRONMENT_NAME}\",
