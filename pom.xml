@@ -38,6 +38,9 @@
         <azure-functions-java-library.version>3.3.0</azure-functions-java-library.version>
         <azure-functions-maven-plugin.version>1.42.0</azure-functions-maven-plugin.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <checkstyle.version>14.4.0</checkstyle.version>
+        <checkstyle.config.directory>${maven.multiModuleProjectDirectory}/config/checkstyle</checkstyle.config.directory>
 
         <!-- Overridable with -D; the Function Apps themselves are provisioned by Bicep. -->
         <azure.resourceGroup>rg-feedback-platform-dev</azure.resourceGroup>
@@ -128,6 +131,36 @@
         </pluginManagement>
 
         <plugins>
+            <!-- Lint: runs in the validate phase, so any build (local or CI) fails fast on a rule violation. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven-checkstyle-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>${checkstyle.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <configLocation>${checkstyle.config.directory}/checkstyle.xml</configLocation>
+                    <propertyExpansion>checkstyle.suppressions.file=${checkstyle.config.directory}/suppressions.xml</propertyExpansion>
+                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                    <consoleOutput>true</consoleOutput>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>warning</violationSeverity>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>lint</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>

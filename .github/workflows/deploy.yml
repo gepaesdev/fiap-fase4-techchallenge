@@ -22,8 +22,8 @@ env:
   JAVA_VERSION: '21'
 
 jobs:
-  build:
-    name: Build and test
+  lint:
+    name: Lint (Java + Bicep)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,8 +36,36 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
+      - name: Lint Java (Checkstyle)
+        run: mvn -B validate
+
+      # bicep lint only warns by default; any finding fails the job so the linter really gates the pipeline.
+      - name: Lint infrastructure (Bicep)
+        run: |
+          output=$(az bicep lint --file infra/main.bicep 2>&1)
+          echo "${output}"
+          if echo "${output}" | grep -qE '(Warning|Error) BCP|(Warning|Error) [a-z-]+:'; then
+            exit 1
+          fi
+
+  build:
+    name: Build and test
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      # Checkstyle already ran in the lint job.
       - name: Build and run all tests
-        run: mvn -B clean verify
+        run: mvn -B clean verify -Dcheckstyle.skip
 
       - name: Zip function packages
         run: |

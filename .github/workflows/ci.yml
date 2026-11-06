@@ -1,4 +1,4 @@
-# Continuous integration for pull requests: builds and runs every test so broken code never reaches main.
+# Continuous integration for pull requests: lints and builds with every test so broken code never reaches main.
 name: CI
 
 on:
@@ -9,8 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: Lint (Java + Bicep)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Lint Java (Checkstyle)
+        run: mvn -B validate
+
+      - name: Lint infrastructure (Bicep)
+        run: |
+          output=$(az bicep lint --file infra/main.bicep 2>&1)
+          echo "${output}"
+          if echo "${output}" | grep -qE '(Warning|Error) BCP|(Warning|Error) [a-z-]+:'; then
+            exit 1
+          fi
+
   build:
     name: Build and test
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,4 +50,4 @@ jobs:
           cache: maven
 
       - name: Build and run all tests
-        run: mvn -B clean verify
+        run: mvn -B clean verify -Dcheckstyle.skip

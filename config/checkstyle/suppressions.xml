@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <!-- Tests use literal values on purpose (e.g. rating 11 must be rejected) and test classes need no Javadoc. -->
+    <suppress checks="MagicNumber|MissingJavadocType" files="[\\/]src[\\/]test[\\/]"/>
+
+    <!-- @SpringBootApplication classes only expose a static main, but Spring must instantiate them (they are also
+         @Configuration classes), so they cannot get the private constructor this rule asks for. -->
+    <suppress checks="HideUtilityClassConstructor" files="Application\.java$"/>
+</suppressions>

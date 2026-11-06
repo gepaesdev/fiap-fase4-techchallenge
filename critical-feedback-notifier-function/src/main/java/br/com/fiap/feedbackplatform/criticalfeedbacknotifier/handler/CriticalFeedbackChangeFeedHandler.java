@@ -32,6 +32,11 @@ public class CriticalFeedbackChangeFeedHandler {
 
     static final String FUNCTION_NAME = "critical-feedback-notifier";
 
+    /** Retries with exponential back-off (5 s up to 5 min) before the batch is given up. */
+    private static final int MAX_DELIVERY_RETRIES = 5;
+    private static final String FIRST_RETRY_DELAY = "00:00:05";
+    private static final String MAX_RETRY_DELAY = "00:05:00";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(CriticalFeedbackChangeFeedHandler.class);
 
     private final CriticalFeedbackNotifierFunction criticalFeedbackNotifierFunction;
@@ -44,7 +49,10 @@ public class CriticalFeedbackChangeFeedHandler {
     }
 
     @FunctionName(FUNCTION_NAME)
-    @ExponentialBackoffRetry(maxRetryCount = 5, minimumInterval = "00:00:05", maximumInterval = "00:05:00")
+    @ExponentialBackoffRetry(
+            maxRetryCount = MAX_DELIVERY_RETRIES,
+            minimumInterval = FIRST_RETRY_DELAY,
+            maximumInterval = MAX_RETRY_DELAY)
     public void run(
             @CosmosDBTrigger(
                     name = "documents",
